@@ -54,12 +54,7 @@ class GridWorld:
         # 2. Check boundaries
         next_row, next_col = next_state
 
-        outside_grid = (
-            next_row < 0
-            or next_row >= self.rows
-            or next_col < 0
-            or next_col >= self.cols
-        )
+        outside_grid = (next_row < 0 or next_row >= self.rows or next_col < 0 or next_col >= self.cols)
 
         if outside_grid:
             next_state = self.state
