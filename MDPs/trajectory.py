@@ -60,10 +60,7 @@ def print_trajectory(trajectory):
 
 
 def total_reward(trajectory):
-    return sum(
-        transition["reward"]
-        for transition in trajectory
-    )
+    return sum(transition["reward"] for transition in trajectory)
 
 
 if __name__ == "__main__":
