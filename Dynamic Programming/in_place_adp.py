@@ -1,133 +1,107 @@
-from gridworld import GridWorld
-
+from MDPs.gridworld import GridWorld
 
 def get_next_state(env, state, action):
     """
     Predict the next state without changing env.state.
-
     This reproduces the transition rules from GridWorld.step().
     """
-
     row, col = state
 
     if action == "UP":
         next_state = (row - 1, col)
-
     elif action == "DOWN":
         next_state = (row + 1, col)
-
     elif action == "LEFT":
         next_state = (row, col - 1)
-
     elif action == "RIGHT":
         next_state = (row, col + 1)
-
     else:
         raise ValueError(f"Invalid action: {action}")
 
     next_row, next_col = next_state
+    outside_grid = (next_row < 0 or next_row >= env.rows or next_col < 0 or next_col >= env.cols)
 
-    outside_grid = (
-        next_row < 0
-        or next_row >= env.rows
-        or next_col < 0
-        or next_col >= env.cols
-    )
-
-    # If action hits boundary or action hits the wall, stay in same state
+    # If action hits boundary or wall, stay in same state
     if outside_grid or next_state == env.wall:
         return state
 
     return next_state
 
-
 def get_reward(env, next_state):
+  """
+  Reward received after entering next_state
+  """
+  if next_state == env.goal_state:
+    return 10
+
+  if next_state == env.bad_state:
+    return -10
+
+  return -1
+
+def get_states(env):
+  """
+  Return all valid states except the wall
+  """
+  states = []
+  for row in range(env.rows):
+    for col in range(env.cols):
+      state = (row, col)
+      if state != env.wall:
+        states.append(state)
+
+  return states
+
+def async_value_iteration(env, gamma=0.9, theta=1e-6):
     """
-    Reward received after entering next_state.
+    Asynchronous / in-place Value Iteration.
+    Bellman optimality update:
+
+        V(s) <- max_a [R(s,a) + gamma * V(s')]
+
+    The important difference is that V(s) is updated
+    immediately instead of waiting for the next sweep.
     """
-
-    if next_state == env.goal_state:
-        return 10
-
-    if next_state == env.bad_state:
-        return -10
-
-    return -1
-
-
-def value_iteration(env, gamma=0.9, theta=1e-6):
-    """
-    Find the optimal value function V*(s) using Value Iteration.
-
-    Bellman optimality equation:
-
-        V*(s) = max_a [R(s, a) + gamma * V*(s')]
-
-    Because our GridWorld is deterministic, each action leads to exactly one next state.
-    """
-
-    values = {}
-
-    # Initialize all valid states with value 0
-    for row in range(env.rows):
-        for col in range(env.cols):
-            state = (row, col)
-
-            if state == env.wall:
-                continue
-
-            values[state] = 0.0
+    states = get_states(env)
+    values = {state: 0.0 for state in states}
+    sweep = 0
 
     while True:
-        delta = 0
+      sweep += 1
+      delta = 0.0
 
-        new_values = values.copy()
+      for state in states:
+        # Terminal states have value 0
+        if state == env.goal_state or state == env.bad_state:
+          continue
+        old_value = values[state]
 
-        for state in values:
+        action_values = []
+        for action in env.actions:
+          next_state = get_next_state(env, state, action)
+          reward = get_reward(env, next_state)
+          action_value = (reward + gamma * values[next_state])
+          action_values.append(action_value)
 
-            # Terminal states have no future value
-            if state == env.goal_state or state == env.bad_state:
-                continue
+        best_value = max(action_values)
 
-            action_values = []
+        # Update immadiately
+        values[state] = best_value
+        delta = max(delta, abs(old_value - best_value))
 
-            for action in env.actions:
-                next_state = get_next_state(env, state, action)
-                reward = get_reward(env, next_state)
-                value = (reward + gamma * values[next_state])
-
-                action_values.append(value)
-
-            # Bellman optimality update
-            best_value = max(action_values)
-
-            new_values[state] = best_value
-
-            delta = max(
-                delta,
-                abs(best_value - values[state]),
-            )
-
-        values = new_values
-
-        # Stop when values stop changing significantly
-        if delta < theta:
-            break
+      print(f"Sweep {sweep}: delta = {delta:.8f}")
+      if delta < theta:
+        break
 
     return values
-
 
 def extract_policy(env, values, gamma=0.9):
     """
     After finding V*(s), extract the best action in every state.
-
     pi*(s) = argmax_a [R(s,a) + gamma * V*(s')]
     """
-
     policy = {}
-
     for state in values:
-
         if state == env.goal_state:
             continue
 
@@ -150,7 +124,6 @@ def extract_policy(env, values, gamma=0.9):
 
     return policy
 
-
 def print_values(env, values):
     print("\nOptimal Value Function V*(s):\n")
 
@@ -159,20 +132,14 @@ def print_values(env, values):
 
         for col in range(env.cols):
             state = (row, col)
-
             if state == env.wall:
                 cells.append(" WALL ")
-
             elif state == env.goal_state:
                 cells.append(" GOAL ")
-
             elif state == env.bad_state:
                 cells.append(" BAD  ")
-
             else:
-                cells.append(
-                    f"{values[state]:6.2f}"
-                )
+                cells.append(f"{values[state]:6.2f}")
 
         print("|" + "|".join(cells) + "|")
 
@@ -192,36 +159,22 @@ def print_policy(env, policy):
 
         for col in range(env.cols):
             state = (row, col)
-
             if state == env.wall:
                 cells.append("###")
-
             elif state == env.goal_state:
                 cells.append(" G ")
-
             elif state == env.bad_state:
                 cells.append(" X ")
-
             else:
                 action = policy[state]
                 cells.append(symbols[action])
 
         print("|" + "|".join(cells) + "|")
 
-
 if __name__ == "__main__":
     env = GridWorld()
-
-    values = value_iteration(
-        env,
-        gamma=0.9,
-    )
-
-    policy = extract_policy(
-        env,
-        values,
-        gamma=0.9,
-    )
+    values = async_value_iteration(env, gamma=0.9)
+    policy = extract_policy(env, values, gamma=0.9)
 
     print_values(env, values)
     print_policy(env, policy)

@@ -1,7 +1,6 @@
 from collections import defaultdict
-
-from gridworld import GridWorld
-from trajectory import generate_trajectory
+from MDPs.gridworld import GridWorld
+from MDPs.trajectory import generate_trajectory
 
 
 def compute_returns(trajectory, gamma=0.9):
